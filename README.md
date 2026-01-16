@@ -2,6 +2,13 @@
 
 A custom Metabase driver that queries Rill APIs, enabling you to browse and query Rill Custom APIs directly from Metabase.
 
+## Screenshots
+
+<img width="768" height="606" alt="Screenshot 2026-01-16 at 9 36 32 AM" src="https://github.com/user-attachments/assets/e1962feb-c341-4094-8909-aebe1ed46af1" />
+
+<img width="909" height="899" alt="Screenshot 2026-01-16 at 9 38 08 AM" src="https://github.com/user-attachments/assets/dbb0a26d-af53-43e3-b21a-cb1dd8bd0333" />
+
+
 ## Features
 
 - Auto-discovers all Rill Custom APIs as "tables"
