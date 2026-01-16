@@ -1,0 +1,58 @@
+###################
+# Metabase with Rill + MotherDuck/DuckDB Driver Plugins (Pre-built)
+###################
+# Use this Dockerfile when you already have pre-built JAR files.
+#
+# Prerequisites:
+#   1. Download Metabase JAR from https://www.metabase.com/start/oss/jar.html
+#      or build it yourself (use MB_EDITION=ee for Enterprise)
+#   2. Build the Rill driver (rill.metabase-driver.jar)
+#
+# Build: docker build -f Dockerfile.prebuilt -t metabase-rill .
+# Run:   docker run -p 3000:3000 metabase-rill
+#
+# For Enterprise, add your token:
+#   docker run -p 3000:3000 -e MB_PREMIUM_EMBEDDING_TOKEN=<your-token> metabase-rill
+#
+# Includes:
+#   - Rill driver plugin (from local build)
+#   - MotherDuck/DuckDB driver plugin (downloaded from GitHub)
+###################
+
+FROM eclipse-temurin:21-jre-alpine
+
+ENV FC_LANG=en-US LC_CTYPE=en_US.UTF-8
+
+# MotherDuck/DuckDB driver version
+ARG DUCKDB_DRIVER_VERSION=0.2.6
+
+# dependencies
+RUN apk add -U bash fontconfig curl font-noto font-noto-arabic font-noto-hebrew font-noto-cjk java-cacerts && \
+    apk upgrade && \
+    rm -rf /var/cache/apk/* && \
+    mkdir -p /app/certs && \
+    curl https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem -o /app/certs/rds-combined-ca-bundle.pem  && \
+    /opt/java/openjdk/bin/keytool -noprompt -import -trustcacerts -alias aws-rds -file /app/certs/rds-combined-ca-bundle.pem -keystore /etc/ssl/certs/java/cacerts -keypass changeit -storepass changeit && \
+    curl https://cacerts.digicert.com/DigiCertGlobalRootG2.crt.pem -o /app/certs/DigiCertGlobalRootG2.crt.pem  && \
+    /opt/java/openjdk/bin/keytool -noprompt -import -trustcacerts -alias azure-cert -file /app/certs/DigiCertGlobalRootG2.crt.pem -keystore /etc/ssl/certs/java/cacerts -keypass changeit -storepass changeit && \
+    mkdir -p /plugins && chmod a+rwx /plugins
+
+# Copy the run script
+COPY run_metabase.sh /app/
+
+# Copy pre-built Metabase JAR (place in same directory as Dockerfile)
+# Download from: https://downloads.metabase.com/enterprise/latest/metabase.jar
+COPY metabase.jar /app/
+
+# Copy pre-built Rill driver plugin
+COPY target/rill.metabase-driver.jar /plugins/
+
+# Download MotherDuck/DuckDB driver plugin
+RUN curl -fsSL -o /plugins/duckdb.metabase-driver.jar \
+    "https://github.com/MotherDuck-Open-Source/metabase_duckdb_driver/releases/download/${DUCKDB_DRIVER_VERSION}/duckdb.metabase-driver.jar"
+
+# expose our default runtime port
+EXPOSE 3000
+
+# run it
+ENTRYPOINT ["/app/run_metabase.sh"]
