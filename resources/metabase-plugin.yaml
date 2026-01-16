@@ -1,0 +1,23 @@
+info:
+  name: Metabase Rill Driver
+  version: 1.0.0
+  description: Query Rill APIs from Metabase
+
+driver:
+  name: rill
+  display-name: Rill
+  lazy-load: true
+  connection-properties:
+    - name: host
+      display-name: Host URL
+      placeholder: http://localhost:9009
+      required: true
+    - name: instance
+      display-name: Instance
+      placeholder: default
+      default: default
+      required: true
+
+init:
+  - step: load-namespace
+    namespace: metabase.driver.rill
