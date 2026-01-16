@@ -1,0 +1,145 @@
+name: Build and Push Docker Images
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      metabase_ref:
+        description: 'Metabase git ref (branch/tag/commit)'
+        required: false
+        default: 'master'
+
+env:
+  REGISTRY: ghcr.io
+  # Change this to your GitHub username/org
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    strategy:
+      matrix:
+        include:
+          - dockerfile: Dockerfile.oss
+            image_suffix: ""
+            edition: "oss"
+          - dockerfile: Dockerfile.enterprise
+            image_suffix: "-enterprise"
+            edition: "ee"
+
+    steps:
+      - name: Checkout rill-driver
+        uses: actions/checkout@v4
+
+      - name: Checkout Metabase
+        uses: actions/checkout@v4
+        with:
+          repository: metabase/metabase
+          ref: ${{ github.event.inputs.metabase_ref || 'master' }}
+          path: metabase
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata (tags, labels)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}${{ matrix.image_suffix }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix=
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Prepare build context
+        run: |
+          # Create combined build context
+          mkdir -p build-context
+          cp -r metabase build-context/
+          cp -r . build-context/rill-driver
+          rm -rf build-context/rill-driver/metabase
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: build-context
+          file: build-context/rill-driver/${{ matrix.dockerfile }}
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64,linux/arm64
+
+  # Faster build using pre-built Metabase JAR (for testing)
+  build-prebuilt:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download Metabase JAR
+        run: |
+          curl -fsSL -o metabase.jar https://downloads.metabase.com/v0.50.0/metabase.jar
+
+      - name: Build Rill driver
+        run: |
+          # For prebuilt, we need the driver JAR
+          # This assumes it's already built or we skip this step
+          mkdir -p target
+          # Placeholder - in real usage, build the driver or download it
+          echo "Driver JAR should be built separately for prebuilt workflow"
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-prebuilt
+          tags: |
+            type=sha,prefix=
+            type=raw,value=latest
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile.prebuilt
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
