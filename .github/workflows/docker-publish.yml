@@ -73,10 +73,12 @@ jobs:
       - name: Prepare build context
         run: |
           # Create combined build context
-          mkdir -p build-context
-          cp -r metabase build-context/
-          cp -r . build-context/rill-driver
-          rm -rf build-context/rill-driver/metabase
+          mkdir -p build-context/rill-driver
+          # Copy metabase
+          mv metabase build-context/
+          # Copy rill-driver files (excluding metabase and build-context)
+          cp -r src resources deps.edn README.md build-context/rill-driver/
+          cp -r Dockerfile.* run_metabase.sh build-context/rill-driver/
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
