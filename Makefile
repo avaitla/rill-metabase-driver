@@ -38,9 +38,11 @@ help:
 	@echo "    make download-metabase-jar - Download pre-built Metabase JAR"
 	@echo ""
 	@echo "  Test:"
-	@echo "    make test             - Run all tests"
-	@echo "    make test-unit        - Run unit tests"
-	@echo "    make test-integration - Run integration tests"
+	@echo "    make test             - Run standalone unit tests (no Metabase required)"
+	@echo "    make test-verbose     - Run tests with verbose output"
+	@echo "    make test-metabase    - Run tests via Metabase framework"
+	@echo "    make test-integration - Run integration tests (requires Rill server)"
+	@echo "    make test-connection  - Test Rill connectivity"
 	@echo "    make lint             - Run linter"
 	@echo ""
 	@echo "  Docker:"
@@ -148,10 +150,26 @@ run-all-plugins: install-plugin install-duckdb-plugin run-jar
 # Test
 # ============================================================================
 
-test: test-unit
+test: test-standalone
 
-test-unit:
-	@echo "Running unit tests..."
+# Standalone tests (no Metabase required)
+test-standalone:
+	@echo "Running standalone unit tests..."
+	@clojure -X:test
+
+# Run tests with verbose output
+test-verbose:
+	@echo "Running tests with verbose output..."
+	@clojure -X:test :verbosity 2
+
+# Run specific test namespace
+test-ns:
+	@echo "Running tests in namespace: $(NS)"
+	@clojure -X:test :nses '[$(NS)]'
+
+# Unit tests via Metabase test framework (requires Metabase)
+test-metabase:
+	@echo "Running unit tests via Metabase..."
 	@cd $(METABASE_DIR) && clojure \
 		-Sdeps '{:aliases {:rill {:extra-deps {metabase/rill-driver {:local/root "$(CURDIR)"}}}}}' \
 		-X:dev:test:rill \
